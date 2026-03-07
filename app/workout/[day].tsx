@@ -16,8 +16,10 @@ import { useWorkout } from "../../lib/hooks/useWorkout";
 import { useWorkoutTimer } from "../../lib/hooks/useWorkoutTimer";
 import { useAuth } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
+import { useBLE } from "../../lib/ble/BLEProvider";
 import { ExerciseBlock } from "../../components/workout/ExerciseBlock";
 import { WorkoutTimer } from "../../components/workout/WorkoutTimer";
+import { DeviceStatus } from "../../components/hr/DeviceStatus";
 
 export default function WorkoutDayScreen() {
   const { day } = useLocalSearchParams<{ day: string }>();
@@ -26,6 +28,64 @@ export default function WorkoutDayScreen() {
   const { user } = useAuth();
   const { workout, exercises, exercisesByBlock, loading } = useWorkout(dayNumber);
   const timer = useWorkoutTimer();
+  const { connectionState, connectedDevice, currentHR } = useBLE();
+
+  const isConnected = connectionState === "connected" || connectionState === "streaming";
+
+  const handleStartLive = () => {
+    if (!isConnected) {
+      Alert.alert(
+        "No HR Monitor",
+        "Connect a heart rate monitor for live HR tracking, or start without it.",
+        [
+          { text: "Connect", onPress: () => router.push("/connect-device") },
+          {
+            text: "Start Without",
+            onPress: () => navigateToLive(),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    } else {
+      navigateToLive();
+    }
+  };
+
+  const navigateToLive = async () => {
+    // Create a workout session
+    let sessionId: string | undefined;
+    if (user) {
+      const { data } = await supabase
+        .from("workout_sessions")
+        .insert({
+          user_id: user.id,
+          day_number: dayNumber,
+          started_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      sessionId = data?.id;
+    }
+
+    router.push({
+      pathname: "/workout/live",
+      params: {
+        exercises: JSON.stringify(
+          exercises.map((e) => ({
+            id: e.id,
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            duration: e.duration,
+            block: e.block,
+          }))
+        ),
+        dayNumber: String(dayNumber),
+        sessionId: sessionId || "",
+        workoutTitle: workout?.title || `Day ${dayNumber}`,
+      },
+    });
+  };
 
   const handleFinish = () => {
     Alert.alert("Finish Workout", "Mark this workout as complete?", [
@@ -77,6 +137,13 @@ export default function WorkoutDayScreen() {
           </Text>
         </View>
 
+        <DeviceStatus
+          connectionState={connectionState}
+          deviceName={connectedDevice?.name}
+          currentHR={currentHR}
+          onPress={() => router.push("/connect-device")}
+        />
+
         <View style={styles.navButtons}>
           {dayNumber > 1 && (
             <TouchableOpacity
@@ -114,6 +181,14 @@ export default function WorkoutDayScreen() {
             exercises={exercisesByBlock[block]}
           />
         ))}
+
+        {/* Start Live Workout */}
+        <TouchableOpacity style={styles.startLiveBtn} onPress={handleStartLive}>
+          <Ionicons name="heart" size={20} color="#000" />
+          <Text style={styles.startLiveText}>
+            {isConnected ? "START WORKOUT" : "START WORKOUT — Connect Watch"}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Bottom Timer Bar */}
@@ -190,5 +265,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
     marginBottom: 20,
+  },
+  startLiveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 18,
+    marginTop: 20,
+  },
+  startLiveText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#000",
+    letterSpacing: 1,
   },
 });

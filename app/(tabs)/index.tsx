@@ -13,15 +13,18 @@ import { COLORS, BRAND, BLOCK_CONFIG } from "../../lib/constants/brand";
 import { useProfile } from "../../lib/hooks/useProfile";
 import { useWorkout } from "../../lib/hooks/useWorkout";
 import { useChallenge } from "../../lib/hooks/useChallenge";
+import { useBLE } from "../../lib/ble/BLEProvider";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/ui/ProgressBar";
+import { DeviceStatus } from "../../components/hr/DeviceStatus";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { profile, currentDay, loading: profileLoading } = useProfile();
   const { workout, exercises, loading: workoutLoading } = useWorkout(currentDay);
   const { challenge, userScore, daysRemaining, haidenPct, leaderboard } = useChallenge();
+  const { connectionState, connectedDevice, currentHR } = useBLE();
 
   if (profileLoading || workoutLoading) {
     return (
@@ -49,10 +52,12 @@ export default function HomeScreen() {
             </Text>
             <Text style={styles.tagline}>{BRAND.tagline}</Text>
           </View>
-          <View style={styles.bleStatus}>
-            <Ionicons name="bluetooth" size={18} color={COLORS.textMuted} />
-            <View style={[styles.statusDot, { backgroundColor: COLORS.textMuted }]} />
-          </View>
+          <DeviceStatus
+            connectionState={connectionState}
+            deviceName={connectedDevice?.name}
+            currentHR={currentHR}
+            onPress={() => router.push("/connect-device")}
+          />
         </View>
 
         {/* Day Progress */}
@@ -148,8 +153,10 @@ export default function HomeScreen() {
           </Card>
           <Card style={styles.statCard}>
             <Ionicons name="heart" size={20} color={COLORS.danger} />
-            <Text style={styles.statValue}>--</Text>
-            <Text style={styles.statLabel}>Avg HR</Text>
+            <Text style={styles.statValue}>
+              {connectionState === "streaming" && currentHR > 0 ? currentHR : "--"}
+            </Text>
+            <Text style={styles.statLabel}>{connectionState === "streaming" ? "Live HR" : "Avg HR"}</Text>
           </Card>
         </View>
       </ScrollView>
@@ -183,16 +190,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 2,
     marginTop: 2,
-  },
-  bleStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   dayCard: {
     marginBottom: 16,

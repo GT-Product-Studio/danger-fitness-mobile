@@ -1,16 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Alert,
+  TextInput,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, BRAND } from "../../lib/constants/brand";
 import { useAuth } from "../../lib/auth";
 import { useProfile } from "../../lib/hooks/useProfile";
+import { useBLE } from "../../lib/ble/BLEProvider";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 
@@ -44,8 +47,24 @@ function SettingsRow({
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const { profile } = useProfile();
+  const { connectionState, connectedDevice, maxHR, setMaxHR, disconnect } = useBLE();
+  const [editingMaxHR, setEditingMaxHR] = useState(false);
+  const [maxHRInput, setMaxHRInput] = useState(String(maxHR));
+
+  const isConnected = connectionState === "connected" || connectionState === "streaming";
+
+  const handleSaveMaxHR = () => {
+    const val = parseInt(maxHRInput, 10);
+    if (val >= 100 && val <= 250) {
+      setMaxHR(val);
+      setEditingMaxHR(false);
+    } else {
+      Alert.alert("Invalid", "Max HR must be between 100 and 250 BPM.");
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -81,20 +100,53 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>HEART RATE MONITOR</Text>
         <SettingsRow
           icon="bluetooth"
-          label="Connect Device"
-          value="Not Connected"
-          onPress={() =>
-            Alert.alert("Coming Soon", "BLE device pairing will be available in Phase 2.")
-          }
+          label={isConnected ? connectedDevice?.name || "Connected" : "Connect Device"}
+          value={isConnected ? "Connected" : "Not Connected"}
+          onPress={() => router.push("/connect-device")}
         />
-        <SettingsRow
-          icon="heart"
-          label="Max Heart Rate"
-          value={`${profile?.max_hr || 190} BPM`}
-          onPress={() =>
-            Alert.alert("Max HR", "Max heart rate customization coming in Phase 2.")
-          }
-        />
+        {isConnected && (
+          <SettingsRow
+            icon="close-circle"
+            label="Disconnect Device"
+            onPress={() => {
+              Alert.alert("Disconnect", "Disconnect from heart rate monitor?", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Disconnect", style: "destructive", onPress: disconnect },
+              ]);
+            }}
+          />
+        )}
+        {editingMaxHR ? (
+          <Card style={styles.row}>
+            <View style={styles.rowContent}>
+              <View style={styles.rowLeft}>
+                <Ionicons name="heart" size={20} color={COLORS.primary} />
+                <Text style={styles.rowLabel}>Max HR</Text>
+              </View>
+              <View style={styles.maxHREdit}>
+                <TextInput
+                  style={styles.maxHRInput}
+                  value={maxHRInput}
+                  onChangeText={setMaxHRInput}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  autoFocus
+                />
+                <Button title="Save" onPress={handleSaveMaxHR} size="small" />
+              </View>
+            </View>
+          </Card>
+        ) : (
+          <SettingsRow
+            icon="heart"
+            label="Max Heart Rate"
+            value={`${maxHR} BPM`}
+            onPress={() => {
+              setMaxHRInput(String(maxHR));
+              setEditingMaxHR(true);
+            }}
+          />
+        )}
 
         {/* Subscription */}
         <Text style={styles.sectionLabel}>SUBSCRIPTION</Text>
@@ -213,6 +265,24 @@ const styles = StyleSheet.create({
   rowValue: {
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  maxHREdit: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  maxHRInput: {
+    backgroundColor: COLORS.background,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "700",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    width: 70,
+    textAlign: "center",
   },
   signOutBtn: {
     marginTop: 32,
