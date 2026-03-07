@@ -18,7 +18,13 @@
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Danger Fitness uses Bluetooth to connect to your heart rate monitor for real-time workout tracking.",
         "NSBluetoothPeripheralUsageDescription": "Danger Fitness uses Bluetooth to connect to your heart rate monitor.",
+        "NSHealthShareUsageDescription": "Danger Fitness reads your heart rate, workout, and activity data to track your training progress and display real-time stats.",
+        "NSHealthUpdateUsageDescription": "Danger Fitness saves your workout data to Apple Health so you can track your training across all your apps.",
         "UIBackgroundModes": ["bluetooth-central"]
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.background-delivery": true
       }
     },
     "android": {

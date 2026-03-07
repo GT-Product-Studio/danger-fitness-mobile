@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
+    "@kingstinct/react-native-healthkit": "^13.2.3",
     "@react-native-async-storage/async-storage": "^3.0.1",
     "@supabase/supabase-js": "^2.98.0",
     "expo": "~55.0.5",
@@ -23,6 +24,8 @@
     "react": "19.2.0",
     "react-native": "0.83.2",
     "react-native-ble-plx": "^3.5.1",
+    "react-native-health": "^1.19.0",
+    "react-native-health-connect": "^3.5.0",
     "react-native-reanimated": "^4.2.2",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.24.0",
