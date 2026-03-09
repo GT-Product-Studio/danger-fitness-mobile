@@ -12,19 +12,12 @@
       }
     },
     "preview": {
-      "distribution": "internal",
-      "ios": {
-        "ascApiKeyId": "5Y9H24972X",
-        "ascApiKeyIssuerId": "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
-        "ascApiKeyPath": "./keys/AuthKey_5Y9H24972X.p8"
-      }
+      "distribution": "internal"
     },
     "production": {
       "ios": {
         "autoIncrement": true,
-        "ascApiKeyId": "5Y9H24972X",
-        "ascApiKeyIssuerId": "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
-        "ascApiKeyPath": "./keys/AuthKey_5Y9H24972X.p8"
+        "credentialsSource": "local"
       },
       "android": {
         "autoIncrement": true
