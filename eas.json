@@ -12,11 +12,19 @@
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "ascApiKeyId": "5Y9H24972X",
+        "ascApiKeyIssuerId": "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
+        "ascApiKeyPath": "./keys/AuthKey_5Y9H24972X.p8"
+      }
     },
     "production": {
       "ios": {
-        "autoIncrement": true
+        "autoIncrement": true,
+        "ascApiKeyId": "5Y9H24972X",
+        "ascApiKeyIssuerId": "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
+        "ascApiKeyPath": "./keys/AuthKey_5Y9H24972X.p8"
       },
       "android": {
         "autoIncrement": true
@@ -29,7 +37,7 @@
         "appleId": "steviecbic@gmail.com",
         "ascApiKeyId": "5Y9H24972X",
         "ascApiKeyIssuerId": "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
-        "ascApiKeyPath": "/Users/openclaw/.openclaw/workspace/keys/AuthKey_5Y9H24972X.p8"
+        "ascApiKeyPath": "./keys/AuthKey_5Y9H24972X.p8"
       }
     }
   }

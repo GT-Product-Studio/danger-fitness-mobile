@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, BRAND } from "../../lib/constants/brand";
 import { useAuth } from "../../lib/auth";
 import { useProfile } from "../../lib/hooks/useProfile";
+import { supabase } from "../../lib/supabase";
 import { useBLE } from "../../lib/ble/BLEProvider";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -49,10 +51,17 @@ function SettingsRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { profile } = useProfile();
+  const { profile, refetch: refetchProfile } = useProfile();
   const { connectionState, connectedDevice, maxHR, setMaxHR, disconnect } = useBLE();
   const [editingMaxHR, setEditingMaxHR] = useState(false);
   const [maxHRInput, setMaxHRInput] = useState(String(maxHR));
+  const currentLevel = profile?.training_level || "grom";
+
+  const handleLevelSwitch = async (level: "grom" | "factory") => {
+    if (!user || level === currentLevel) return;
+    await supabase.from("profiles").update({ training_level: level }).eq("id", user.id);
+    refetchProfile();
+  };
 
   const isConnected = connectionState === "connected" || connectionState === "streaming";
 
@@ -95,6 +104,35 @@ export default function SettingsScreen() {
             </View>
           </View>
         </Card>
+
+        {/* Training Level */}
+        <Text style={styles.sectionLabel}>TRAINING LEVEL</Text>
+        <View style={styles.levelContainer}>
+          {([
+            { id: "grom" as const, emoji: "🟢", label: "GROM", desc: "4 days/week • 30-45 min" },
+            { id: "factory" as const, emoji: "🔴", label: "FACTORY", desc: "5-6 days/week • 45-75 min" },
+          ]).map((opt) => (
+            <TouchableOpacity
+              key={opt.id}
+              style={[styles.levelOption, currentLevel === opt.id && styles.levelOptionActive]}
+              onPress={() => handleLevelSwitch(opt.id)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.levelEmoji}>{opt.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.levelLabel, currentLevel === opt.id && styles.levelLabelActive]}>
+                  {opt.label}
+                </Text>
+                <Text style={styles.levelDesc}>{opt.desc}</Text>
+              </View>
+              {currentLevel === opt.id && (
+                <View style={styles.activeBadge}>
+                  <Text style={styles.activeBadgeText}>Active</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Heart Rate Monitor */}
         <Text style={styles.sectionLabel}>HEART RATE MONITOR</Text>
@@ -286,5 +324,51 @@ const styles = StyleSheet.create({
   },
   signOutBtn: {
     marginTop: 32,
+  },
+  levelContainer: {
+    gap: 8,
+    marginBottom: 4,
+  },
+  levelOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    padding: 14,
+  },
+  levelOptionActive: {
+    borderColor: COLORS.primary + "66",
+    backgroundColor: COLORS.primary + "0D",
+  },
+  levelEmoji: {
+    fontSize: 20,
+  },
+  levelLabel: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.text,
+    letterSpacing: 1.5,
+  },
+  levelLabelActive: {
+    color: COLORS.primary,
+  },
+  levelDesc: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  activeBadge: {
+    backgroundColor: COLORS.primary + "33",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  activeBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.primary,
   },
 });

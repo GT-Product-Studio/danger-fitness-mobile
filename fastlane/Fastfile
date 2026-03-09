@@ -1,0 +1,51 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Create distribution certificate and provisioning profile"
+  lane :setup_certs do
+    api_key = app_store_connect_api_key(
+      key_id: "5Y9H24972X",
+      issuer_id: "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
+      key_filepath: "/Users/openclaw/Projects/danger-fitness-mobile/keys/AuthKey_5Y9H24972X.p8",
+      in_house: false
+    )
+
+    # Create or fetch distribution certificate
+    cert(
+      team_id: "92XM2R442D",
+      output_path: "./certs",
+      force: false
+    )
+
+    # Create or fetch provisioning profile  
+    sigh(
+      team_id: "92XM2R442D",
+      app_identifier: "com.dangerfitness.app",
+      output_path: "./certs",
+      force: false,
+      adhoc: false
+    )
+  end
+
+  desc "Create app in App Store Connect"
+  lane :create_app do
+    app_store_connect_api_key(
+      key_id: "5Y9H24972X",
+      issuer_id: "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
+      key_filepath: "/Users/openclaw/Projects/danger-fitness-mobile/keys/AuthKey_5Y9H24972X.p8",
+      in_house: false
+    )
+
+    create_app_online(
+      username: "steviecbic@gmail.com",
+      app_identifier: "com.dangerfitness.app",
+      app_name: "Danger Fitness",
+      language: "English",
+      sku: "danger-fitness-001",
+      team_id: "92XM2R442D",
+      enable_services: {
+        health_kit: "on"
+      }
+    )
+  end
+end

@@ -24,16 +24,28 @@ export interface Workout {
 }
 
 export function useWorkout(dayNumber: number) {
+  const { user } = useAuth();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchWorkout = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
+
+    // Get user's training level
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("training_level")
+      .eq("id", user.id)
+      .single();
+    const level = profile?.training_level || "grom";
+
     const { data: w } = await supabase
       .from("workouts")
       .select("*")
       .eq("day_number", dayNumber)
+      .eq("level", level)
       .single();
 
     if (w) {
@@ -46,7 +58,7 @@ export function useWorkout(dayNumber: number) {
       setExercises(exs || []);
     }
     setLoading(false);
-  }, [dayNumber]);
+  }, [dayNumber, user]);
 
   useEffect(() => {
     fetchWorkout();

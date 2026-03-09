@@ -8,6 +8,7 @@ export interface Profile {
   started_at: string;
   avatar_url?: string;
   max_hr?: number;
+  training_level?: "grom" | "factory";
 }
 
 export function useProfile() {
