@@ -1,0 +1,11 @@
+# Same as .gitignore but WITHOUT excluding credential files
+# EAS needs certs/ and keys/ for local credential builds
+
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
