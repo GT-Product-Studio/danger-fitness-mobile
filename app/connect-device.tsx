@@ -50,6 +50,7 @@ export default function ConnectDeviceScreen() {
     connectedDevice,
     isScanning,
     discoveredDevices,
+    connectionError,
     startScan,
     connect,
     disconnect,
@@ -192,6 +193,14 @@ export default function ConnectDeviceScreen() {
                   </TouchableOpacity>
                 </Card>
               ))}
+          </View>
+        )}
+
+        {/* Connection Error */}
+        {connectionError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
+            <Text style={styles.errorText}>{connectionError}</Text>
           </View>
         )}
 
@@ -344,6 +353,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textMuted,
     marginTop: 2,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.danger + "15",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.danger,
+    fontWeight: "500",
   },
   hrBadge: {
     backgroundColor: COLORS.primary + "20",

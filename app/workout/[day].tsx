@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,6 @@ import { supabase } from "../../lib/supabase";
 import { useBLE } from "../../lib/ble/BLEProvider";
 import { ExerciseBlock } from "../../components/workout/ExerciseBlock";
 import { HaidenBenchmark } from "../../components/workout/HaidenBenchmark";
-import { WorkoutTimer } from "../../components/workout/WorkoutTimer";
 import { DeviceStatus } from "../../components/hr/DeviceStatus";
 
 export default function WorkoutDayScreen() {
@@ -33,24 +32,29 @@ export default function WorkoutDayScreen() {
 
   const isConnected = connectionState === "connected" || connectionState === "streaming";
   const isStreaming = connectionState === "streaming";
+  const [workoutStarted, setWorkoutStarted] = useState(false);
 
-  // Auto-start HR streaming when connected
-  React.useEffect(() => {
-    if (connectionState === "connected") {
+  const handleStartWorkout = () => {
+    setWorkoutStarted(true);
+    timer.start();
+    // Auto-start HR if connected
+    if (isConnected && !isStreaming) {
       startHRStream().catch(() => {});
     }
-    return () => {
-      if (isStreaming) {
-        stopHRStream();
-      }
-    };
-  }, [connectionState]);
+  };
 
-  const handleFinish = () => {
-    Alert.alert("Finish Workout", "Mark this workout as complete?", [
+  // Also auto-start HR streaming if device connects after workout started
+  React.useEffect(() => {
+    if (workoutStarted && connectionState === "connected") {
+      startHRStream().catch(() => {});
+    }
+  }, [connectionState, workoutStarted]);
+
+  const handleComplete = () => {
+    Alert.alert("Complete Workout", "Mark this workout as done?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Finish",
+        text: "Complete",
         onPress: async () => {
           timer.stop();
           stopHRStream();
@@ -61,9 +65,11 @@ export default function WorkoutDayScreen() {
               completed_at: new Date().toISOString(),
             });
           }
-          Alert.alert("Workout Complete!", `Day ${dayNumber} finished in ${timer.formattedTime}`, [
-            { text: "OK", onPress: () => router.back() },
-          ]);
+          Alert.alert(
+            "🏁 Workout Complete!",
+            `Day ${dayNumber} finished${timer.formattedTime ? ` in ${timer.formattedTime}` : ""}`,
+            [{ text: "OK", onPress: () => router.back() }]
+          );
         },
       },
     ]);
@@ -124,8 +130,43 @@ export default function WorkoutDayScreen() {
         </View>
       </View>
 
-      {/* Exercise List */}
+      {/* Content */}
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* START WORKOUT — top of the page */}
+        {!workoutStarted ? (
+          <View style={styles.startSection}>
+            <TouchableOpacity style={styles.startBtn} onPress={handleStartWorkout}>
+              <Ionicons name="play" size={22} color="#000" />
+              <Text style={styles.startBtnText}>START WORKOUT</Text>
+            </TouchableOpacity>
+
+            {!isConnected && (
+              <TouchableOpacity
+                style={styles.connectPrompt}
+                onPress={() => router.push("/connect-device")}
+              >
+                <Ionicons name="watch-outline" size={16} color={COLORS.textSecondary} />
+                <Text style={styles.connectPromptText}>
+                  Connect watch for live HR tracking
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          /* Timer bar when workout is active */
+          <View style={styles.activeTimerBar}>
+            <Ionicons name="timer-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.activeTimerText}>{timer.formattedTime || "0:00"}</Text>
+            {isStreaming && currentHR > 0 && (
+              <View style={styles.activeHRBadge}>
+                <Ionicons name="heart" size={14} color={COLORS.danger} />
+                <Text style={styles.activeHRText}>{currentHR}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {workout?.description && (
           <Text style={styles.description}>{workout.description}</Text>
         )}
@@ -137,6 +178,7 @@ export default function WorkoutDayScreen() {
         {/* Haiden's Benchmark Card */}
         {workout && <HaidenBenchmark workout={workout} />}
 
+        {/* Exercise Blocks */}
         {sortedBlocks.map((block) => (
           <ExerciseBlock
             key={block}
@@ -145,36 +187,18 @@ export default function WorkoutDayScreen() {
           />
         ))}
 
-        {/* HR Connection Prompt (when not connected) */}
-        {!isConnected && (
-          <TouchableOpacity
-            style={styles.connectPrompt}
-            onPress={() => router.push("/connect-device")}
-          >
-            <Ionicons name="heart-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.connectPromptText}>
-              Connect watch for live HR tracking
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
-        )}
-
-        {/* Finish Workout */}
-        <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
-          <Ionicons name="checkmark-circle" size={20} color="#000" />
-          <Text style={styles.finishBtnText}>FINISH WORKOUT</Text>
+        {/* MARK AS COMPLETE — bottom of the page */}
+        <TouchableOpacity
+          style={[styles.completeBtn, !workoutStarted && styles.completeBtnDisabled]}
+          onPress={handleComplete}
+          disabled={!workoutStarted}
+        >
+          <Ionicons name="checkmark-circle" size={22} color={workoutStarted ? "#000" : COLORS.textMuted} />
+          <Text style={[styles.completeBtnText, !workoutStarted && styles.completeBtnTextDisabled]}>
+            MARK AS COMPLETE
+          </Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Bottom Timer Bar */}
-      <WorkoutTimer
-        elapsed={timer.elapsed}
-        isRunning={timer.isRunning}
-        formattedTime={timer.formattedTime}
-        onStart={timer.start}
-        onStop={timer.stop}
-        onFinish={handleFinish}
-      />
     </SafeAreaView>
   );
 }
@@ -228,8 +252,81 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: 20,
-    paddingBottom: 16,
+    paddingBottom: 40,
   },
+
+  // Start Workout section (top)
+  startSection: {
+    marginBottom: 20,
+    gap: 10,
+  },
+  startBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 18,
+  },
+  startBtnText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#000",
+    letterSpacing: 1.5,
+  },
+  connectPrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  connectPromptText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.textSecondary,
+  },
+
+  // Active timer bar (replaces start button when workout is running)
+  activeTimerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.primary + "15",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "30",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  activeTimerText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.primary,
+    fontVariant: ["tabular-nums"],
+    flex: 1,
+  },
+  activeHRBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: COLORS.danger + "20",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  activeHRText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.danger,
+    fontVariant: ["tabular-nums"],
+  },
+
   description: {
     fontSize: 14,
     color: COLORS.textSecondary,
@@ -241,38 +338,28 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: 20,
   },
-  connectPrompt: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: COLORS.primary + "15",
-    borderWidth: 1,
-    borderColor: COLORS.primary + "30",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  connectPromptText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.primary,
-  },
-  finishBtn: {
+
+  // Mark as Complete (bottom)
+  completeBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
     backgroundColor: COLORS.primary,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 18,
-    marginTop: 20,
+    marginTop: 24,
   },
-  finishBtnText: {
+  completeBtnDisabled: {
+    backgroundColor: COLORS.surface,
+  },
+  completeBtnText: {
     fontSize: 16,
     fontWeight: "800",
     color: "#000",
     letterSpacing: 1,
+  },
+  completeBtnTextDisabled: {
+    color: COLORS.textMuted,
   },
 });
