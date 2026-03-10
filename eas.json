@@ -17,7 +17,7 @@
     "production": {
       "ios": {
         "autoIncrement": true,
-        "credentialsSource": "remote"
+        "credentialsSource": "local"
       },
       "android": {
         "autoIncrement": true
