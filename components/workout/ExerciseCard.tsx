@@ -1,8 +1,10 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform, UIManager } from "react-native";
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform, UIManager, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../lib/constants/brand";
 import { ZoneBadge } from "../ui/ZoneBadge";
+import { useBLE } from "../../lib/ble/BLEProvider";
+import { ZONE_COLORS, getZoneBoundaries } from "../../lib/ble/hr-zones";
 import type { Exercise } from "../../lib/hooks/useWorkout";
 
 // Enable LayoutAnimation on Android
@@ -138,13 +140,65 @@ function getDefaultDetail(exercise: Exercise) {
   };
 }
 
+// Pulsing heart animation for live HR
+function PulsingHeart({ color }: { color: string }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.3, duration: 300, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Ionicons name="heart" size={18} color={color} />
+    </Animated.View>
+  );
+}
+
+// Per-exercise stat tracker
+interface ExerciseStats {
+  hrSamples: number[];
+  startTime: number;
+  endTime?: number;
+}
+
 export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
   const [done, setDone] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [exerciseStats, setExerciseStats] = useState<ExerciseStats | null>(null);
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = React.useRef(0);
+
+  // BLE context
+  let bleContext: ReturnType<typeof useBLE> | null = null;
+  try { bleContext = useBLE(); } catch { /* BLEProvider might not be present */ }
+  const { currentHR = 0, currentZone = 1, connectionState = "disconnected", maxHR: userMaxHR = 190 } = bleContext || {};
+  const isStreaming = connectionState === "streaming";
+
+  // Haiden's target HR zone for this exercise
+  const haidenZone = exercise.hr_zone || 3;
+  const zoneBounds = getZoneBoundaries(210); // Haiden's max HR
+  const haidenTargetMin = (zoneBounds as any)[`z${haidenZone}`]?.min || 140;
+  const haidenTargetMax = (zoneBounds as any)[`z${haidenZone}`]?.max || 170;
+
+  // Track HR samples when timer is running
+  useEffect(() => {
+    if (timerRunning && isStreaming && currentHR > 0) {
+      setExerciseStats((prev) => {
+        if (!prev) return { hrSamples: [currentHR], startTime: Date.now() };
+        return { ...prev, hrSamples: [...prev.hrSamples, currentHR] };
+      });
+    }
+  }, [timerRunning, isStreaming, currentHR]);
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -170,6 +224,9 @@ export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
     intervalRef.current = null;
     setTimerRunning(false);
     setDone(true);
+    if (exerciseStats) {
+      setExerciseStats((prev) => prev ? { ...prev, endTime: Date.now() } : null);
+    }
   };
 
   const formatTime = (secs: number) => {
@@ -262,6 +319,100 @@ export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
             <View style={styles.restRow}>
               <Ionicons name="timer" size={14} color={COLORS.textMuted} />
               <Text style={styles.restText}>Rest: {info.rest} between sets</Text>
+            </View>
+          )}
+
+          {/* LIVE HR vs HAIDEN — only when streaming */}
+          {isStreaming && currentHR > 0 && !done && (
+            <View style={styles.liveHRSection}>
+              <View style={styles.liveHRHeader}>
+                <PulsingHeart color={ZONE_COLORS[currentZone as keyof typeof ZONE_COLORS] || COLORS.danger} />
+                <Text style={styles.liveHRTitle}>LIVE vs HAIDEN</Text>
+              </View>
+
+              <View style={styles.liveHRComparison}>
+                {/* Your HR */}
+                <View style={styles.liveHRCol}>
+                  <Text style={styles.liveHRLabel}>YOU</Text>
+                  <Text style={[styles.liveHRValue, { color: ZONE_COLORS[currentZone as keyof typeof ZONE_COLORS] || COLORS.primary }]}>
+                    {currentHR}
+                  </Text>
+                  <Text style={styles.liveHRUnit}>bpm</Text>
+                </View>
+
+                {/* VS divider */}
+                <View style={styles.liveHRVS}>
+                  <Text style={styles.liveHRVSText}>vs</Text>
+                </View>
+
+                {/* Haiden's target */}
+                <View style={styles.liveHRCol}>
+                  <Text style={styles.liveHRLabel}>HAIDEN</Text>
+                  <Text style={[styles.liveHRValue, { color: COLORS.orange }]}>
+                    {haidenTargetMin}–{haidenTargetMax}
+                  </Text>
+                  <Text style={styles.liveHRUnit}>Zone {haidenZone}</Text>
+                </View>
+              </View>
+
+              {/* Match indicator */}
+              {(() => {
+                const inZone = currentHR >= haidenTargetMin && currentHR <= haidenTargetMax;
+                const close = currentHR >= haidenTargetMin - 10 && currentHR <= haidenTargetMax + 10;
+                return (
+                  <View style={[styles.matchBadge, { backgroundColor: inZone ? COLORS.primary + "22" : close ? COLORS.warning + "22" : COLORS.danger + "22" }]}>
+                    <Ionicons
+                      name={inZone ? "checkmark-circle" : close ? "arrow-up" : "alert-circle"}
+                      size={14}
+                      color={inZone ? COLORS.primary : close ? COLORS.warning : COLORS.danger}
+                    />
+                    <Text style={[styles.matchText, { color: inZone ? COLORS.primary : close ? COLORS.warning : COLORS.danger }]}>
+                      {inZone ? "Matching Haiden's zone!" : close ? "Almost there — push harder!" : currentHR < haidenTargetMin ? "Push harder to match Haiden" : "Ease up — above Haiden's zone"}
+                    </Text>
+                  </View>
+                );
+              })()}
+            </View>
+          )}
+
+          {/* Post-exercise summary — shown when done with HR data */}
+          {done && exerciseStats && exerciseStats.hrSamples.length > 5 && (
+            <View style={styles.summarySection}>
+              <Text style={styles.summaryTitle}>📊 YOUR STATS</Text>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryStat}>
+                  <Text style={styles.summaryValue}>
+                    {Math.round(exerciseStats.hrSamples.reduce((a, b) => a + b, 0) / exerciseStats.hrSamples.length)}
+                  </Text>
+                  <Text style={styles.summaryLabel}>AVG HR</Text>
+                </View>
+                <View style={styles.summaryStat}>
+                  <Text style={styles.summaryValue}>{Math.max(...exerciseStats.hrSamples)}</Text>
+                  <Text style={styles.summaryLabel}>MAX HR</Text>
+                </View>
+                <View style={styles.summaryStat}>
+                  <Text style={styles.summaryValue}>{formatTime(elapsed)}</Text>
+                  <Text style={styles.summaryLabel}>TIME</Text>
+                </View>
+              </View>
+              {/* Compare to Haiden */}
+              {(() => {
+                const avgHR = Math.round(exerciseStats.hrSamples.reduce((a, b) => a + b, 0) / exerciseStats.hrSamples.length);
+                const inZone = avgHR >= haidenTargetMin && avgHR <= haidenTargetMax;
+                return (
+                  <Text style={[styles.summaryVerdict, { color: inZone ? COLORS.primary : COLORS.warning }]}>
+                    {inZone ? "✅ Matched Haiden's intensity!" : avgHR < haidenTargetMin ? "⬆️ Below Haiden's zone — push next time" : "🔥 Above Haiden's zone — beast mode"}
+                  </Text>
+                );
+              })()}
+            </View>
+          )}
+
+          {/* No HR device prompt */}
+          {!isStreaming && !done && (
+            <View style={styles.noHRHint}>
+              <Ionicons name="watch-outline" size={14} color={COLORS.textMuted} />
+              <Text style={styles.noHRText}>Connect a heart rate monitor to see live comparison vs Haiden</Text>
             </View>
           )}
         </View>
@@ -472,5 +623,136 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // Live HR comparison styles
+  liveHRSection: {
+    marginTop: 12,
+    backgroundColor: "rgba(255, 68, 68, 0.08)",
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 68, 68, 0.2)",
+  },
+  liveHRHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  liveHRTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.danger,
+    letterSpacing: 2,
+  },
+  liveHRComparison: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    marginBottom: 10,
+  },
+  liveHRCol: {
+    alignItems: "center",
+    flex: 1,
+  },
+  liveHRLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: COLORS.textMuted,
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  liveHRValue: {
+    fontSize: 28,
+    fontWeight: "900",
+  },
+  liveHRUnit: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  liveHRVS: {
+    backgroundColor: COLORS.border,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveHRVSText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.textMuted,
+  },
+  matchBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 8,
+    padding: 8,
+    paddingHorizontal: 12,
+  },
+  matchText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  // Post-exercise summary
+  summarySection: {
+    marginTop: 12,
+    backgroundColor: "rgba(41, 240, 0, 0.08)",
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "33",
+  },
+  summaryTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.primary,
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 10,
+  },
+  summaryStat: {
+    alignItems: "center",
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+  summaryLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: COLORS.textMuted,
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  summaryVerdict: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  // No HR hint
+  noHRHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  noHRText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    flex: 1,
+    fontStyle: "italic",
   },
 });
