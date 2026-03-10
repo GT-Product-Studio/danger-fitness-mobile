@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.dangerfitness.app",
-      "buildNumber": "20",
+      "buildNumber": "21",
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Danger Fitness uses Bluetooth to connect to your heart rate monitor for real-time workout tracking.",
         "NSBluetoothPeripheralUsageDescription": "Danger Fitness uses Bluetooth to connect to your heart rate monitor.",

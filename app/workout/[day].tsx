@@ -29,64 +29,22 @@ export default function WorkoutDayScreen() {
   const { user } = useAuth();
   const { workout, exercises, exercisesByBlock, loading } = useWorkout(dayNumber);
   const timer = useWorkoutTimer();
-  const { connectionState, connectedDevice, currentHR } = useBLE();
+  const { connectionState, connectedDevice, currentHR, startHRStream, stopHRStream } = useBLE();
 
   const isConnected = connectionState === "connected" || connectionState === "streaming";
+  const isStreaming = connectionState === "streaming";
 
-  const handleStartLive = () => {
-    if (!isConnected) {
-      Alert.alert(
-        "No HR Monitor",
-        "Connect a heart rate monitor for live HR tracking, or start without it.",
-        [
-          { text: "Connect", onPress: () => router.push("/connect-device") },
-          {
-            text: "Start Without",
-            onPress: () => navigateToLive(),
-          },
-          { text: "Cancel", style: "cancel" },
-        ]
-      );
-    } else {
-      navigateToLive();
+  // Auto-start HR streaming when connected
+  React.useEffect(() => {
+    if (connectionState === "connected") {
+      startHRStream().catch(() => {});
     }
-  };
-
-  const navigateToLive = async () => {
-    // Create a workout session
-    let sessionId: string | undefined;
-    if (user) {
-      const { data } = await supabase
-        .from("workout_sessions")
-        .insert({
-          user_id: user.id,
-          day_number: dayNumber,
-          started_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      sessionId = data?.id;
-    }
-
-    router.push({
-      pathname: "/workout/live",
-      params: {
-        exercises: JSON.stringify(
-          exercises.map((e) => ({
-            id: e.id,
-            name: e.name,
-            sets: e.sets,
-            reps: e.reps,
-            duration: e.duration,
-            block: e.block,
-          }))
-        ),
-        dayNumber: String(dayNumber),
-        sessionId: sessionId || "",
-        workoutTitle: workout?.title || `Day ${dayNumber}`,
-      },
-    });
-  };
+    return () => {
+      if (isStreaming) {
+        stopHRStream();
+      }
+    };
+  }, [connectionState]);
 
   const handleFinish = () => {
     Alert.alert("Finish Workout", "Mark this workout as complete?", [
@@ -95,6 +53,7 @@ export default function WorkoutDayScreen() {
         text: "Finish",
         onPress: async () => {
           timer.stop();
+          stopHRStream();
           if (user && workout) {
             await supabase.from("progress").upsert({
               user_id: user.id,
@@ -186,12 +145,24 @@ export default function WorkoutDayScreen() {
           />
         ))}
 
-        {/* Start Live Workout */}
-        <TouchableOpacity style={styles.startLiveBtn} onPress={handleStartLive}>
-          <Ionicons name="heart" size={20} color="#000" />
-          <Text style={styles.startLiveText}>
-            {isConnected ? "START WORKOUT" : "START WORKOUT — Connect Watch"}
-          </Text>
+        {/* HR Connection Prompt (when not connected) */}
+        {!isConnected && (
+          <TouchableOpacity
+            style={styles.connectPrompt}
+            onPress={() => router.push("/connect-device")}
+          >
+            <Ionicons name="heart-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.connectPromptText}>
+              Connect watch for live HR tracking
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        )}
+
+        {/* Finish Workout */}
+        <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
+          <Ionicons name="checkmark-circle" size={20} color="#000" />
+          <Text style={styles.finishBtnText}>FINISH WORKOUT</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -270,7 +241,25 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: 20,
   },
-  startLiveBtn: {
+  connectPrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: COLORS.primary + "15",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "30",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  connectPromptText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+  finishBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -280,7 +269,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     marginTop: 20,
   },
-  startLiveText: {
+  finishBtnText: {
     fontSize: 16,
     fontWeight: "800",
     color: "#000",
