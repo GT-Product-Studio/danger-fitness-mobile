@@ -27,6 +27,7 @@
     "react-native-ble-plx": "^3.5.1",
     "react-native-health": "^1.19.0",
     "react-native-health-connect": "^3.5.0",
+    "react-native-nitro-modules": "^0.35.0",
     "react-native-reanimated": "^4.2.2",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.24.0",
