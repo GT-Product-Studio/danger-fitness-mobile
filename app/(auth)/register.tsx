@@ -35,9 +35,11 @@ export default function RegisterScreen() {
     setError("");
     setLoading(true);
     const { error: authError } = await signUp(email, password, fullName);
-    setLoading(false);
     if (authError) {
+      setLoading(false);
       setError(authError.message);
+    } else {
+      router.replace("/(tabs)");
     }
   };
 

@@ -30,9 +30,11 @@ export default function LoginScreen() {
     setError("");
     setLoading(true);
     const { error: authError } = await signIn(email, password);
-    setLoading(false);
     if (authError) {
+      setLoading(false);
       setError(authError.message);
+    } else {
+      router.replace("/(tabs)");
     }
   };
 

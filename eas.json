@@ -27,6 +27,7 @@
   "submit": {
     "production": {
       "ios": {
+        "ascAppId": "6760323361",
         "appleId": "steviecbic@gmail.com",
         "ascApiKeyId": "5Y9H24972X",
         "ascApiKeyIssuerId": "dd3d0372-4a59-4719-a898-f34e3c54ed8b",
