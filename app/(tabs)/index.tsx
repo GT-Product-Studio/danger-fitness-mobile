@@ -18,6 +18,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/ui/ProgressBar";
 import { DeviceStatus } from "../../components/hr/DeviceStatus";
+import { HaidenBenchmark } from "../../components/workout/HaidenBenchmark";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -71,7 +72,7 @@ export default function HomeScreen() {
               <Text style={styles.dayTitle}>Day {currentDay} of 30</Text>
               <ProgressBar progress={currentDay / 30} height={6} />
               <Text style={styles.daySubtitle}>
-                {workout?.day_type || "Training Day"}
+                {workout?.week_day ? `${workout.week_day} — ` : ""}{workout?.day_type === "race" ? "🏁 Race Day" : workout?.day_type === "recovery" ? "🔄 Recovery" : workout?.day_type === "travel" ? "🧘 Travel / Mobility" : "🏋️ Training Day"}
               </Text>
             </View>
           </View>
@@ -107,6 +108,9 @@ export default function HomeScreen() {
             style={styles.startBtn}
           />
         </Card>
+
+        {/* Haiden's Benchmark — compact view */}
+        {workout && <HaidenBenchmark workout={workout} compact />}
 
         {/* Challenge Card */}
         {challenge && (

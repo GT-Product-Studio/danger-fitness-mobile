@@ -21,6 +21,12 @@ export interface Workout {
   title: string;
   day_type: string;
   description?: string;
+  week_day?: string;
+  haiden_distance_mi?: number;
+  haiden_duration_min?: number;
+  haiden_avg_hr?: number;
+  haiden_max_hr?: number;
+  haiden_calories?: number;
 }
 
 export function useWorkout(dayNumber: number) {

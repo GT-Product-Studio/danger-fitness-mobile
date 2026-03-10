@@ -18,6 +18,7 @@ import { useAuth } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
 import { useBLE } from "../../lib/ble/BLEProvider";
 import { ExerciseBlock } from "../../components/workout/ExerciseBlock";
+import { HaidenBenchmark } from "../../components/workout/HaidenBenchmark";
 import { WorkoutTimer } from "../../components/workout/WorkoutTimer";
 import { DeviceStatus } from "../../components/hr/DeviceStatus";
 
@@ -117,7 +118,7 @@ export default function WorkoutDayScreen() {
     );
   }
 
-  const blockOrder = ["cycling", "moto", "gym", "recovery", "race"];
+  const blockOrder = ["cycling", "moto", "gym", "core", "grip", "hiit", "recovery", "race"];
   const sortedBlocks = Object.keys(exercisesByBlock).sort(
     (a, b) => blockOrder.indexOf(a) - blockOrder.indexOf(b)
   );
@@ -173,6 +174,9 @@ export default function WorkoutDayScreen() {
         <Text style={styles.exerciseCount}>
           {exercises.length} exercises across {sortedBlocks.length} block{sortedBlocks.length !== 1 ? "s" : ""}
         </Text>
+
+        {/* Haiden's Benchmark Card */}
+        {workout && <HaidenBenchmark workout={workout} />}
 
         {sortedBlocks.map((block) => (
           <ExerciseBlock

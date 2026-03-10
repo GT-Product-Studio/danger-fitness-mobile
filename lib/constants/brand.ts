@@ -60,6 +60,9 @@ export const BLOCK_CONFIG = {
   cycling: { icon: "🚴", color: "#29F000", label: "Road Ride" },
   moto: { icon: "🏍️", color: "#FF6B00", label: "Moto Practice" },
   gym: { icon: "🏋️", color: "#FFD700", label: "Gym Training" },
+  core: { icon: "💪", color: "#FF6B00", label: "Core Work" },
+  grip: { icon: "🤝", color: "#A855F7", label: "Grip Training" },
+  hiit: { icon: "🔥", color: "#FF0000", label: "HIIT" },
   recovery: { icon: "🧘", color: "#808080", label: "Recovery" },
   race: { icon: "🏁", color: "#FF0000", label: "Race Day" },
 } as const;
