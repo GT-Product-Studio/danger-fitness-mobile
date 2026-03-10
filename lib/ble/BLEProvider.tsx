@@ -114,6 +114,7 @@ export function BLEProvider({ children }: { children: React.ReactNode }) {
         id: device.id,
         name,
         rssi: device.rssi ?? -100,
+        isHRDevice: true, // If we connected, it's an HR device
       };
 
       bleDeviceRef.current = device;

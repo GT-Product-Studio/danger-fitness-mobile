@@ -6,6 +6,7 @@ export interface BLEDevice {
   id: string;
   name: string;
   rssi: number;
+  isHRDevice: boolean;
 }
 
 let manager: BleManager | null = null;
@@ -64,6 +65,22 @@ async function ensureBluetoothReady(): Promise<void> {
   }
 }
 
+// Known HR device name patterns
+const HR_NAME_PATTERNS = [
+  /garmin/i, /forerunner/i, /fr\d/i, /hrm/i, /polar/i, /wahoo/i, /tickr/i,
+  /oh1/i, /verity/i, /coospo/i, /magene/i, /heart/i, /hr/i,
+  /scosche/i, /rhythm/i, /moofit/i, /coros/i, /suunto/i, /venu/i,
+  /vivoactive/i, /fenix/i, /epix/i, /instinct/i, /enduro/i,
+];
+
+function isLikelyHRDevice(name: string, serviceUUIDs: string[]): boolean {
+  const advertisesHR = serviceUUIDs.some(
+    (uuid) => uuid.toLowerCase().includes("180d")
+  );
+  const nameMatchesHR = HR_NAME_PATTERNS.some((p) => p.test(name));
+  return advertisesHR || nameMatchesHR;
+}
+
 export async function scanForHRDevices(): Promise<BLEDevice[]> {
   const granted = await requestPermissions();
   if (!granted) {
@@ -75,24 +92,22 @@ export async function scanForHRDevices(): Promise<BLEDevice[]> {
   const mgr = getManager();
   const devices: Map<string, BLEDevice> = new Map();
 
-  // Known HR device name patterns
-  const HR_NAME_PATTERNS = [
-    /garmin/i, /forerunner/i, /hrm/i, /polar/i, /wahoo/i, /tickr/i,
-    /oh1/i, /verity/i, /coospo/i, /magene/i, /heart/i, /hr/i,
-    /scosche/i, /rhythm/i, /moofit/i, /coros/i, /suunto/i,
-  ];
-
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       mgr.stopDeviceScan();
-      resolve(Array.from(devices.values()));
+      // Sort: HR devices first, then by signal strength
+      const result = Array.from(devices.values()).sort((a, b) => {
+        if (a.isHRDevice && !b.isHRDevice) return -1;
+        if (!a.isHRDevice && b.isHRDevice) return 1;
+        return b.rssi - a.rssi;
+      });
+      resolve(result);
     }, 15000);
 
-    // Scan WITHOUT service UUID filter — many watches (especially Garmin)
-    // don't advertise 0x180D in their scan response even when broadcasting HR.
-    // We accept any named device and also specifically look for HR service advertisers.
+    // Scan ALL BLE devices — no service filter.
+    // Show every named device so the user can find their watch.
     mgr.startDeviceScan(
-      null, // No service filter — scan all BLE devices
+      null,
       { allowDuplicates: false },
       (error: Error | null, device: Device | null) => {
         if (error || !device) return;
@@ -100,26 +115,18 @@ export async function scanForHRDevices(): Promise<BLEDevice[]> {
         const name = device.name || device.localName;
         if (!name) return;
 
-        // Check if device advertises HR service
         const serviceUUIDs = device.serviceUUIDs || [];
-        const advertisesHR = serviceUUIDs.some(
-          (uuid) => uuid.toLowerCase().includes("180d")
-        );
+        const isHR = isLikelyHRDevice(name, serviceUUIDs);
 
-        // Check if device name matches known HR device patterns
-        const nameMatchesHR = HR_NAME_PATTERNS.some((p) => p.test(name));
-
-        if (advertisesHR || nameMatchesHR) {
-          devices.set(device.id, {
-            id: device.id,
-            name,
-            rssi: device.rssi ?? -100,
-          });
-        }
+        devices.set(device.id, {
+          id: device.id,
+          name,
+          rssi: device.rssi ?? -100,
+          isHRDevice: isHR,
+        });
       }
     );
 
-    // Allow manual stop
     (scanForHRDevices as any)._timeout = timeout;
   });
 }

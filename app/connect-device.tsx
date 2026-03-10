@@ -154,10 +154,10 @@ export default function ConnectDeviceScreen() {
         {/* Discovered Devices */}
         {discoveredDevices.length > 0 && !isConnected && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>FOUND DEVICES</Text>
-            {discoveredDevices
-              .sort((a, b) => b.rssi - a.rssi)
-              .map((device) => (
+            <Text style={styles.sectionLabel}>
+              FOUND DEVICES ({discoveredDevices.length})
+            </Text>
+            {discoveredDevices.map((device) => (
                 <Card key={device.id} style={styles.deviceCard}>
                   <TouchableOpacity
                     style={styles.deviceRow}
@@ -165,9 +165,20 @@ export default function ConnectDeviceScreen() {
                     activeOpacity={0.7}
                     disabled={connectionState === "connecting"}
                   >
-                    <Ionicons name="watch-outline" size={28} color={COLORS.primary} />
+                    <Ionicons
+                      name={device.isHRDevice ? "heart-outline" : "bluetooth-outline"}
+                      size={28}
+                      color={device.isHRDevice ? COLORS.primary : COLORS.textMuted}
+                    />
                     <View style={styles.deviceInfo}>
-                      <Text style={styles.deviceName}>{device.name}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={styles.deviceName}>{device.name}</Text>
+                        {device.isHRDevice && (
+                          <View style={styles.hrBadge}>
+                            <Text style={styles.hrBadgeText}>HR</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.deviceId}>
                         {device.id.substring(0, 17)}...
                       </Text>
@@ -190,8 +201,15 @@ export default function ConnectDeviceScreen() {
             <Ionicons name="bluetooth-outline" size={48} color={COLORS.textMuted} />
             <Text style={styles.emptyTitle}>No Devices Found</Text>
             <Text style={styles.emptyText}>
-              Make sure your heart rate monitor is turned on and broadcasting.
+              Make sure Bluetooth is on and your device is broadcasting.
             </Text>
+            <View style={styles.troubleshootBox}>
+              <Text style={styles.troubleshootTitle}>Garmin Watch?</Text>
+              <Text style={styles.troubleshootText}>
+                Hold UP → Health & Wellness → Wrist Heart Rate → Broadcast Heart Rate → ON{"\n"}
+                Then start an activity (Run/Cardio) on the watch and scan again.
+              </Text>
+            </View>
           </View>
         )}
 
@@ -326,6 +344,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textMuted,
     marginTop: 2,
+  },
+  hrBadge: {
+    backgroundColor: COLORS.primary + "20",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  hrBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.primary,
+    letterSpacing: 1,
+  },
+  troubleshootBox: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    width: "100%",
+  },
+  troubleshootTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  troubleshootText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
   emptyState: {
     alignItems: "center",
