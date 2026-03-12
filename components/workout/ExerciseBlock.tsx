@@ -7,9 +7,10 @@ import type { Exercise } from "../../lib/hooks/useWorkout";
 interface ExerciseBlockProps {
   block: string;
   exercises: Exercise[];
+  dayNumber?: number;
 }
 
-export function ExerciseBlock({ block, exercises }: ExerciseBlockProps) {
+export function ExerciseBlock({ block, exercises, dayNumber }: ExerciseBlockProps) {
   const config = BLOCK_CONFIG[block as keyof typeof BLOCK_CONFIG] || {
     icon: "💪",
     color: "#808080",
@@ -27,7 +28,7 @@ export function ExerciseBlock({ block, exercises }: ExerciseBlockProps) {
         <Text style={styles.count}>{exercises.length}</Text>
       </View>
       {exercises.map((exercise) => (
-        <ExerciseCard key={exercise.id} exercise={exercise} />
+        <ExerciseCard key={exercise.id} exercise={exercise} dayNumber={dayNumber} />
       ))}
     </View>
   );

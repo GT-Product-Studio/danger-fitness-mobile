@@ -5,6 +5,8 @@ import { COLORS } from "../../lib/constants/brand";
 import { ZoneBadge } from "../ui/ZoneBadge";
 import { useBLE } from "../../lib/ble/BLEProvider";
 import { ZONE_COLORS, getZoneBoundaries } from "../../lib/ble/hr-zones";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth";
 import type { Exercise } from "../../lib/hooks/useWorkout";
 
 // Enable LayoutAnimation on Android
@@ -12,9 +14,18 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+interface SavedHRStats {
+  avg_hr: number;
+  max_hr: number;
+  min_hr: number;
+  duration_seconds: number;
+  in_zone_pct: number;
+}
+
 interface ExerciseCardProps {
   exercise: Exercise;
   isActive?: boolean;
+  dayNumber?: number;
 }
 
 // Exercise detail database — maps exercise names to in-depth info
@@ -169,14 +180,20 @@ interface ExerciseStats {
   endTime?: number;
 }
 
-export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, isActive, dayNumber }: ExerciseCardProps) {
   const [done, setDone] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [exerciseStats, setExerciseStats] = useState<ExerciseStats | null>(null);
+  const [savedStats, setSavedStats] = useState<SavedHRStats | null>(null);
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = React.useRef(0);
+
+  // Auth for saving
+  let authContext: ReturnType<typeof useAuth> | null = null;
+  try { authContext = useAuth(); } catch { /* Auth might not be present */ }
+  const user = authContext?.user;
 
   // BLE context
   let bleContext: ReturnType<typeof useBLE> | null = null;
@@ -219,13 +236,52 @@ export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
     }
   }, [timerRunning, elapsed]);
 
-  const markDone = () => {
+  const markDone = async () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = null;
     setTimerRunning(false);
     setDone(true);
+
     if (exerciseStats) {
       setExerciseStats((prev) => prev ? { ...prev, endTime: Date.now() } : null);
+
+      // Save HR stats to Supabase
+      const samples = exerciseStats.hrSamples;
+      if (samples.length >= 2 && user) {
+        const avgHR = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+        const maxHR = Math.max(...samples);
+        const minHR = Math.min(...samples);
+        const inZoneCount = samples.filter(
+          (hr) => hr >= haidenTargetMin && hr <= haidenTargetMax
+        ).length;
+        const inZonePct = Math.round((inZoneCount / samples.length) * 100);
+
+        const stats: SavedHRStats = {
+          avg_hr: avgHR,
+          max_hr: maxHR,
+          min_hr: minHR,
+          duration_seconds: elapsed,
+          in_zone_pct: inZonePct,
+        };
+        setSavedStats(stats);
+
+        try {
+          await supabase.from("exercise_hr_logs").insert({
+            user_id: user.id,
+            exercise_id: exercise.id,
+            day_number: dayNumber || 1,
+            avg_hr: avgHR,
+            max_hr: maxHR,
+            min_hr: minHR,
+            duration_seconds: elapsed,
+            hr_samples: samples,
+            haiden_zone: haidenZone,
+            in_zone_pct: inZonePct,
+          });
+        } catch (err) {
+          console.warn("Failed to save HR stats:", err);
+        }
+      }
     }
   };
 
@@ -276,8 +332,30 @@ export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
         />
       </View>
 
-      {/* Collapsed: just show notes */}
-      {!expanded && exercise.notes ? (
+      {/* Collapsed: HR stats when done, otherwise notes */}
+      {!expanded && done && savedStats ? (
+        <View style={styles.collapsedStats}>
+          <View style={styles.collapsedStat}>
+            <Ionicons name="heart" size={12} color={COLORS.danger} />
+            <Text style={styles.collapsedStatText}>Avg {savedStats.avg_hr}</Text>
+          </View>
+          <View style={styles.collapsedStat}>
+            <Ionicons name="arrow-up" size={12} color={COLORS.warning} />
+            <Text style={styles.collapsedStatText}>Max {savedStats.max_hr}</Text>
+          </View>
+          <View style={styles.collapsedStat}>
+            <Ionicons name="time-outline" size={12} color={COLORS.textMuted} />
+            <Text style={styles.collapsedStatText}>{formatTime(savedStats.duration_seconds)}</Text>
+          </View>
+          {savedStats.in_zone_pct >= 50 && (
+            <View style={[styles.collapsedStat, { backgroundColor: COLORS.primary + "20" }]}>
+              <Text style={[styles.collapsedStatText, { color: COLORS.primary }]}>
+                {savedStats.in_zone_pct}% in zone
+              </Text>
+            </View>
+          )}
+        </View>
+      ) : !expanded && exercise.notes ? (
         <Text style={styles.notes} numberOfLines={1}>{exercise.notes}</Text>
       ) : null}
 
@@ -376,7 +454,7 @@ export function ExerciseCard({ exercise, isActive }: ExerciseCardProps) {
           )}
 
           {/* Post-exercise summary — shown when done with HR data */}
-          {done && exerciseStats && exerciseStats.hrSamples.length > 5 && (
+          {done && exerciseStats && exerciseStats.hrSamples.length >= 2 && (
             <View style={styles.summarySection}>
               <Text style={styles.summaryTitle}>📊 YOUR STATS</Text>
               <View style={styles.summaryRow}>
@@ -490,6 +568,26 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 8,
     fontStyle: "italic",
+  },
+  collapsedStats: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  collapsedStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: COLORS.surface,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  collapsedStatText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
   },
   expandedContent: {
     marginTop: 12,

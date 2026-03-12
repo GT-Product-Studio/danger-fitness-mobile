@@ -184,6 +184,7 @@ export default function WorkoutDayScreen() {
             key={block}
             block={block}
             exercises={exercisesByBlock[block]}
+            dayNumber={dayNumber}
           />
         ))}
 
